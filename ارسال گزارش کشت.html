@@ -1,0 +1,2040 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+    <link rel="manifest" href="manifest.json">
+
+    <script>
+      // �1�0�1�9�1�9�1�1�1�4 �1�2�1�4�1�2�1�7 Service Worker �1�7�1�9 �1�9�1�9�1�2�1�9�1�5�1�9
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/service-worker.js')
+            .then(registration => {
+              console.log('Service Worker registered! Scope:', registration.scope);
+            })
+            .catch(err => {
+              console.log('Service Worker registration failed:', err);
+            });
+        });
+      }
+    </script>
+</head>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>پنل ثبت گزارش روزانه کشاورزی</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            font-family: 'Vazirmatn', sans-serif;
+        }
+        
+        .persian-input {
+            direction: rtl;
+            text-align: right;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #10b981, #059669);
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #059669, #047857);
+            transform: translateY(-1px);
+        }
+        
+        .btn-secondary {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+        }
+        
+        .btn-secondary:hover {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            transform: translateY(-1px);
+        }
+        
+        .btn-warning {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+        }
+        
+        .btn-warning:hover {
+            background: linear-gradient(135deg, #d97706, #b45309);
+            transform: translateY(-1px);
+        }
+        
+        .form-container {
+            background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+            border: 1px solid #cbd5e1;
+        }
+        
+        .input-field {
+            background: white;
+            border: 2px solid #e2e8f0;
+            transition: all 0.3s ease;
+        }
+        
+        .input-field:focus {
+            border-color: #10b981;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+        }
+        
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+        }
+        
+        .toast.show {
+            transform: translateX(0);
+        }
+        
+        .sidebar {
+            position: fixed;
+            top: 0;
+            right: -300px;
+            width: 300px;
+            height: 100vh;
+            background: white;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+            transition: right 0.3s ease;
+            z-index: 1000;
+            overflow-y: auto;
+        }
+        
+        .sidebar.open {
+            right: 0;
+        }
+        
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 999;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .login-container {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-green-50 to-blue-50 min-h-screen">
+    <!-- اعلان -->
+    <div id="toast" class="toast bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg">
+        <span id="toastMessage">عملیات با موفقیت انجام شد</span>
+    </div>
+
+    <!-- صفحه ورود -->
+    <div id="loginPage" class="login-container min-h-screen flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+            <div class="text-center mb-8">
+                <h1 class="text-2xl font-bold text-gray-800 mb-2">ورود به سامانه</h1>
+                <p class="text-gray-600">واحد نیشکر امام خمینی (ره)</p>
+            </div>
+            
+            <form id="loginForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">👤 نام و نام خانوادگی</label>
+                    <input type="text" id="fullName" class="input-field w-full px-4 py-3 rounded-lg persian-input" placeholder="نام کامل خود را وارد کنید" required>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">🆔 شماره کارت پرسنلی</label>
+                    <input type="text" id="employeeId" class="input-field w-full px-4 py-3 rounded-lg persian-input" placeholder="شماره کارت پرسنلی" required>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">🔐 رمز ورود</label>
+                    <input type="password" id="password" class="input-field w-full px-4 py-3 rounded-lg" placeholder="رمز ورود را وارد کنید" required>
+                </div>
+                
+                <button type="submit" class="btn-primary w-full py-3 text-white font-medium rounded-lg">
+                    🚪 ورود به سامانه
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- اورلی منو -->
+    <div id="overlay" class="overlay" onclick="closeSidebar()"></div>
+
+    <!-- منوی کناری -->
+    <div id="sidebar" class="sidebar">
+        <div class="p-6 border-b border-gray-200">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-bold text-gray-800">منو</h2>
+                <button onclick="closeSidebar()" class="text-gray-500 hover:text-gray-700">✄1�7</button>
+            </div>
+        </div>
+        
+        <div class="p-4">
+            <div class="space-y-2">
+                <button onclick="showUserInfo()" class="w-full text-right px-4 py-3 rounded-lg hover:bg-gray-100 flex items-center">
+                    👤 مشخصات کاربر
+                </button>
+                <button onclick="showPerformance()" class="w-full text-right px-4 py-3 rounded-lg hover:bg-gray-100 flex items-center">
+                    📊 پایش عملکرد
+                </button>
+                <button onclick="showBackup()" class="w-full text-right px-4 py-3 rounded-lg hover:bg-gray-100 flex items-center">
+                    💾 بکاپ و بازیابی
+                </button>
+                <button onclick="showSupport()" class="w-full text-right px-4 py-3 rounded-lg hover:bg-blue-100 text-blue-600 flex items-center">
+                    📞 پشتیبانی
+                </button>
+                <button onclick="logout()" class="w-full text-right px-4 py-3 rounded-lg hover:bg-red-100 text-red-600 flex items-center">
+                    🚪 خروج
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- صفحه اصلی -->
+    <div id="mainPage" class="hidden">
+        <div class="container mx-auto px-4 py-6 max-w-md">
+            <!-- هدر -->
+            <div class="text-center mb-6 bg-white rounded-2xl shadow-lg p-6 border-t-4 border-green-500 relative">
+                <!-- دکمه منو -->
+                <button onclick="openSidebar()" class="absolute top-4 right-4 p-2 rounded-lg hover:bg-gray-100">
+                    <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                    </svg>
+                </button>
+                
+
+            <h1 class="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-700 to-green-900 mb-3 tracking-wide drop-shadow-lg">ثبت گزارش روزانه کشت نیشکر</h1>
+            <p class="text-gray-600 text-sm font-medium">واحد نیشکر امام خمینی (ره)</p>
+            <div class="mt-3 flex items-center justify-between">
+                <div class="text-xs text-gray-500">سامانه مدیریت گزارش‌هاۄ1�7 کشاورزی</div>
+                <div id="cloudStatus" class="text-xs px-2 py-1 rounded-full bg-green-100 text-green-600">
+                    ☁️ آنلاین
+                </div>
+            </div>
+        </div>
+
+        <!-- فرم -->
+        <div class="form-container rounded-2xl p-6 shadow-lg mb-6">
+            <form id="dailyReportForm" class="space-y-4">
+                <!-- اداره -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">🏢 اداره</label>
+                    <select id="office" class="input-field w-full px-4 py-3 rounded-lg persian-input" required>
+                        <option value="">انتخاب کنید</option>
+                        <option value="اول">اول</option>
+                        <option value="دوم">دوم</option>
+                        <option value="سوم">سوم</option>
+                        <option value="چهارم">چهارم</option>
+                    </select>
+                </div>
+
+                <!-- نوع کشت -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">🌱 نوع کشت</label>
+                    <select id="cultivationType" class="input-field w-full px-4 py-3 rounded-lg persian-input" required onchange="toggleContractorName()">
+                        <option value="">انتخاب کنید</option>
+                        <option value="پلنتری">پلنتری</option>
+                        <option value="دستی">دستی</option>
+                    </select>
+                </div>
+
+                <!-- نام پیمانکار کشت -->
+                <div id="contractorNameContainer" class="hidden">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">👷 نام پیمانکار کشت</label>
+                    <input type="text" id="contractorName" class="input-field w-full px-4 py-3 rounded-lg persian-input" placeholder="نام پیمانکار کشت را وارد کنید">
+                </div>
+
+                <!-- نوع واریته -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">🧬 نوع واریته</label>
+                    <select id="varietyType" class="input-field w-full px-4 py-3 rounded-lg persian-input" required onchange="toggleVarietyType()">
+                        <option value="">انتخاب کنید</option>
+                        <option value="CP69-1062">CP69-1062</option>
+                        <option value="CP57-614">CP57-614</option>
+                        <option value="CP73-21">CP73-21</option>
+                        <option value="CP48-103">CP48-103</option>
+                        <option value="IRC-00-14">IRC-00-14</option>
+                        <option value="IRC-99-07">IRC-99-07</option>
+                        <option value="دیگر">دیگر</option>
+                    </select>
+                </div>
+
+                <!-- نام واریته دیگر -->
+                <div id="otherVarietyContainer" class="hidden">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">📝 نام واریته</label>
+                    <input type="text" id="otherVarietyName" class="input-field w-full px-4 py-3 rounded-lg persian-input" placeholder="نام واریته را وارد کنید">
+                </div>
+
+
+
+                <!-- نام کانال -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">🚰 نام کانال</label>
+                    <input type="text" id="canalName" class="input-field w-full px-4 py-3 rounded-lg persian-input" placeholder="نام کانال را وارد کنید" required>
+                </div>
+
+                <!-- موقعیت مزرعه -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">📍 موقعیت مزرعه</label>
+                    <input type="text" id="farmLocation" class="input-field w-full px-4 py-3 rounded-lg persian-input" placeholder="موقعیت مزرعه را وارد کنید" required>
+                </div>
+
+                <!-- ساعت شروع -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">🕐 ساعت شروع عملیات</label>
+                    <input type="time" id="startTime" class="input-field w-full px-4 py-3 rounded-lg" required>
+                </div>
+
+                <!-- ساعت پایان -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">🕕 ساعت پایان عملیات</label>
+                    <input type="time" id="endTime" class="input-field w-full px-4 py-3 rounded-lg" required>
+                </div>
+
+                <!-- هکتار امروز -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">📏 هکتار کشت شده امروز</label>
+                    <input type="number" id="todayHectares" step="0.1" class="input-field w-full px-4 py-3 rounded-lg persian-input" placeholder="0.0" required>
+                </div>
+
+                <!-- هکتار تا امروز -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">📊 هکتار کشت شده تا امروز</label>
+                    <input type="number" id="totalHectares" step="0.1" class="input-field w-full px-4 py-3 rounded-lg persian-input bg-gray-100" readonly>
+                </div>
+
+                <!-- ساعت ثبت -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">⏄1�7 ساعت ثبت گزارش</label>
+                    <input type="text" id="recordTime" class="input-field w-full px-4 py-3 rounded-lg bg-gray-100" readonly>
+                </div>
+
+                <!-- تاریخ ثبت -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">📅 تاریخ ثبت گزارش</label>
+                    <input type="text" id="recordDate" class="input-field w-full px-4 py-3 rounded-lg bg-gray-100 persian-input" readonly>
+                </div>
+
+                <!-- بخش دستگاه متوقف -->
+                <div class="bg-red-50 border-2 border-red-200 rounded-xl p-4 space-y-4">
+                    <h3 class="text-lg font-bold text-red-700 mb-4">⚙️ اطلاعات دستگاه متوقف</h3>
+                    
+                    <!-- انتخاب دستگاه -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">🔧 انتخاب دستگاه</label>
+                        <select id="stoppedMachine" class="input-field w-full px-4 py-3 rounded-lg persian-input" onchange="toggleStoppedMachineDetails()">
+                            <option value="ندارد">ندارد</option>
+                            <option value="پلنتر یک ردیفه شماره 1">پلنتر یک ردیفه شماره 1</option>
+                            <option value="پلنتر یک ردیفه شماره 2">پلنتر یک ردیفه شماره 2</option>
+                            <option value="پلنتر 2 ردیفه شماره 1">پلنتر 2 ردیفه شماره 1</option>
+                            <option value="دیگر">دیگر</option>
+                        </select>
+                    </div>
+
+                    <!-- جزئیات دستگاه متوقف -->
+                    <div id="stoppedMachineDetails" class="hidden space-y-4">
+                        <!-- نام دستگاه دیگر -->
+                        <div id="otherMachineContainer" class="hidden">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">📝 نام دستگاه</label>
+                            <input type="text" id="otherMachineName" class="input-field w-full px-4 py-3 rounded-lg persian-input" placeholder="نام دستگاه را وارد کنید">
+                        </div>
+                        
+                        <!-- ساعت شروع توقف -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">🕐 ساعت شروع توقف</label>
+                            <input type="time" id="stopStartTime" class="input-field w-full px-4 py-3 rounded-lg">
+                        </div>
+                        
+                        <!-- ساعت پایان توقف -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">🕕 ساعت پایان توقف</label>
+                            <input type="time" id="stopEndTime" class="input-field w-full px-4 py-3 rounded-lg">
+                        </div>
+                        
+                        <!-- دلیل توقف -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">❄1�7 دلیل توقف</label>
+                            <select id="stopReasonSelect" class="input-field w-full px-4 py-3 rounded-lg persian-input mb-3" onchange="toggleCustomStopReason()">
+                                <option value="">انتخاب کنید</option>
+                                <option value="خرابی فنی">خرابی فنی</option>
+                                <option value="نقص قطعات">نقص قطعات</option>
+                                <option value="تعمیر و نگهداری">تعمیر و نگهداری</option>
+                                <option value="کمبود سوخت">کمبود سوخت</option>
+                                <option value="شرایط آب و هوایی">شرایط آب و هوایی</option>
+                                <option value="دیگر">دیگر</option>
+                            </select>
+                            
+                            <!-- فیلد دلیل توقف دیگر -->
+                            <div id="customStopReasonContainer" class="hidden">
+                                <textarea id="customStopReason" rows="2" class="input-field w-full px-4 py-3 rounded-lg persian-input" placeholder="دلیل توقف را شرح دهید..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+
+                <!-- نکته -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">📝 نکته</label>
+                    <textarea id="notes" rows="3" class="input-field w-full px-4 py-3 rounded-lg persian-input" placeholder="نکات اضافی را وارد کنید..."></textarea>
+                </div>
+            </form>
+        </div>
+
+        <!-- دکمه‌هاۄ1�7 عملیات -->
+        <div class="space-y-3">
+            <button onclick="saveReport()" class="btn-primary w-full py-4 text-white font-medium rounded-xl shadow-lg">
+                💾 ذخیره گزارش
+            </button>
+            
+            <div class="grid grid-cols-2 gap-3">
+                <button onclick="loadReports()" class="py-3 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-xl shadow-lg transition-all text-sm">
+                    📂 مشاهده گزارش‌ه؄1�7
+                </button>
+                <button onclick="syncFromCloud()" class="py-3 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-xl shadow-lg transition-all text-sm">
+                    ☁️ همگام‌سازۄ1�7 ابری
+                </button>
+            </div>
+        </div>
+
+        <!-- گزارش‌هاۄ1�7 ذخیره شده -->
+        <div id="savedReports" class="mt-6 hidden">
+            <h3 class="text-lg font-bold text-gray-800 mb-4">گزارش‌هاۄ1�7 ذخیره شده</h3>
+            <div id="reportsList" class="space-y-3"></div>
+        </div>
+        </div>
+    </div>
+
+    <!-- صفحات منو -->
+    <div id="menuPages" class="hidden">
+        <!-- مشخصات کاربر -->
+        <div id="userInfoPage" class="hidden container mx-auto px-4 py-6 max-w-md">
+            <div class="bg-white rounded-2xl shadow-lg p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-xl font-bold text-gray-800">مشخصات کاربر</h2>
+                    <button onclick="backToMain()" class="text-gray-500 hover:text-gray-700">ↄ1�7 بازگشت</button>
+                </div>
+                <div id="userInfoContent" class="space-y-4"></div>
+            </div>
+        </div>
+
+        <!-- پایش عملکرد -->
+        <div id="performancePage" class="hidden container mx-auto px-4 py-6 max-w-md">
+            <div class="bg-white rounded-2xl shadow-lg p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-xl font-bold text-gray-800">پایش عملکرد</h2>
+                    <button onclick="backToMain()" class="text-gray-500 hover:text-gray-700">ↄ1�7 بازگشت</button>
+                </div>
+                <div id="performanceContent" class="space-y-6">
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h3 class="text-lg font-semibold mb-4 text-center">📊 روند کشت هکتار</h3>
+                        <div style="height: 250px;">
+                            <canvas id="hectareChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h3 class="text-lg font-semibold mb-4 text-center">⏄1�7 ساعات کار روزانه</h3>
+                        <div style="height: 250px;">
+                            <canvas id="hoursChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- پشتیبانی -->
+        <div id="supportPage" class="hidden container mx-auto px-4 py-6 max-w-md">
+            <div class="bg-white rounded-2xl shadow-lg p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-xl font-bold text-gray-800">پشتیبانی فنی</h2>
+                    <button onclick="backToMain()" class="text-gray-500 hover:text-gray-700">ↄ1�7 بازگشت</button>
+                </div>
+                
+                <div class="space-y-6">
+                    <!-- اطلاعات پشتیبان -->
+                    <div class="bg-gradient-to-r from-blue-50 to-blue-100 p-6 rounded-xl border border-blue-200">
+                        <div class="flex items-center mb-4">
+                            <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center text-white text-xl font-bold shadow-lg ml-4">
+                                MK
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-bold text-blue-800">محمد کعب</h3>
+                                <p class="text-blue-600 text-sm">مسئول پشتیبانی فنی</p>
+                            </div>
+                        </div>
+                        
+                        <div class="space-y-3">
+                            <div class="bg-white p-4 rounded-lg shadow-sm">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center">
+                                        <span class="text-2xl ml-3">📱</span>
+                                        <div>
+                                            <div class="font-semibold text-gray-800">شماره تماس</div>
+                                            <div class="text-blue-600 font-bold text-lg">09168231334</div>
+                                        </div>
+                                    </div>
+                                    <button onclick="callSupport()" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium transition-all">
+                                        📞 تماس
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- ساعات کاری -->
+                    <div class="bg-gradient-to-r from-green-50 to-green-100 p-6 rounded-xl border border-green-200">
+                        <h4 class="font-bold text-green-800 mb-3 flex items-center">
+                            🕐 ساعات پشتیبانی
+                        </h4>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-gray-700">شنبه تا چهارشنبه:</span>
+                                <span class="font-medium text-green-700">8:00 - 16:00</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-700">پنج‌شنبل1�7:</span>
+                                <span class="font-medium text-green-700">8:00 - 13:00</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-700">جمعه:</span>
+                                <span class="font-medium text-red-600">تعطیل</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- راهنمای سریع -->
+                    <div class="bg-gradient-to-r from-yellow-50 to-yellow-100 p-6 rounded-xl border border-yellow-200">
+                        <h4 class="font-bold text-yellow-800 mb-3">💡 راهنمای سریع</h4>
+                        <div class="space-y-2 text-sm text-yellow-700">
+                            <p> 1�7 برای مشکلات فنی با شماره بالا تماس بگیرید</p>
+                            <p> 1�7 قبل از تماس، نوع خطا و پیام آن را یادداشت کنید</p>
+                            <p> 1�7 برای بکاپ اطلاعات از منوی "بکاپ و بازیابی" استفاده کنید</p>
+                            <p> 1�7 در صورت قطع اینترنت، اطلاعات محلی ذخیره می‌شو؄1�7</p>
+                        </div>
+                    </div>
+                    
+
+                </div>
+            </div>
+        </div>
+
+        <!-- بکاپ و بازیابی -->
+        <div id="backupPage" class="hidden container mx-auto px-4 py-6 max-w-md">
+            <div class="bg-white rounded-2xl shadow-lg p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-xl font-bold text-gray-800">بکاپ و بازیابی</h2>
+                    <button onclick="backToMain()" class="text-gray-500 hover:text-gray-700">ↄ1�7 بازگشت</button>
+                </div>
+                
+                <div class="space-y-6">
+                    <!-- ایجاد بکاپ -->
+                    <div class="bg-gradient-to-r from-green-50 to-green-100 p-6 rounded-xl border border-green-200">
+                        <h3 class="text-lg font-semibold text-green-800 mb-3 flex items-center">
+                            💾 ایجاد بکاپ
+                        </h3>
+                        <p class="text-sm text-green-700 mb-4">
+                            تمام گزارش‌ه؄1�7 و اطلاعات شما در یک فایل ذخیره می‌شو؄1�7
+                        </p>
+                        <button onclick="createBackup()" class="btn-primary w-full py-3 text-white font-medium rounded-lg shadow-lg">
+                            📥 دانلود فایل بکاپ
+                        </button>
+                    </div>
+                    
+                    <!-- بازیابی بکاپ -->
+                    <div class="bg-gradient-to-r from-blue-50 to-blue-100 p-6 rounded-xl border border-blue-200">
+                        <h3 class="text-lg font-semibold text-blue-800 mb-3 flex items-center">
+                            📂 بازیابی اطلاعات
+                        </h3>
+                        <p class="text-sm text-blue-700 mb-4">
+                            فایل بکاپ قبلی خود را انتخاب کنید تا اطلاعات بازیابی شود
+                        </p>
+                        <div class="space-y-3">
+                            <input type="file" id="backupFile" accept=".json" class="input-field w-full px-4 py-3 rounded-lg border-2 border-dashed border-blue-300 bg-white">
+                            <button onclick="restoreBackup()" class="btn-secondary w-full py-3 text-white font-medium rounded-lg shadow-lg">
+                                🔄 بازیابی از فایل
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- اطلاعات فعلی -->
+                    <div class="bg-gradient-to-r from-purple-50 to-purple-100 p-6 rounded-xl border border-purple-200">
+                        <h3 class="text-lg font-semibold text-purple-800 mb-3">📊 اطلاعات فعلی</h3>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="bg-white p-3 rounded-lg text-center">
+                                <div class="text-xl font-bold text-purple-600" id="currentReportsCount">0</div>
+                                <div class="text-xs text-gray-600">گزارش ذخیره شده</div>
+                            </div>
+                            <div class="bg-white p-3 rounded-lg text-center">
+                                <div class="text-xl font-bold text-green-600" id="currentTotalHectares">0.0</div>
+                                <div class="text-xs text-gray-600">کل هکتار</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- هشدار -->
+                    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                        <div class="flex items-start">
+                            <div class="text-yellow-600 text-xl ml-3">⚠️</div>
+                            <div>
+                                <h4 class="text-sm font-semibold text-yellow-800">نکته مهم</h4>
+                                <p class="text-xs text-yellow-700 mt-1">
+                                    بازیابی اطلاعات، تمام داده‌هاۄ1�7 فعلی را جایگزین می‌کن؄1�7. حتماً قبل از بازیابی، بکاپ جدید تهیه کنید.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // تبدیل تاریخ میلادی به شمسی
+        function toPersianDate(date) {
+            const persianMonths = [
+                'فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور',
+                'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند'
+            ];
+            
+            // استفاده از کتابخانه Intl برای تبدیل دقیق
+            try {
+                const persianDate = new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                }).format(date);
+                return persianDate;
+            } catch (error) {
+                // روش جایگزین در صورت عدم پشتیبانی
+                const gy = date.getFullYear();
+                const gm = date.getMonth() + 1;
+                const gd = date.getDate();
+                
+                // محاسبه ساده تر برای نمایش
+                let jy = gy - 621;
+                let jm = gm;
+                let jd = gd;
+                
+                // تنظیم تقریبی ماه‌ه؄1�7
+                if (gm <= 3) {
+                    jy--;
+                    jm += 9;
+                } else {
+                    jm -= 3;
+                }
+                
+                // محدود کردن ماه به 12
+                if (jm > 12) jm = 12;
+                if (jm < 1) jm = 1;
+                
+                return `${jd} ${persianMonths[jm - 1]} ${jy}`;
+            }
+        }
+
+        // راه‌اندازۄ1�7 فرم
+        function initializeForm() {
+            const now = new Date();
+            document.getElementById('recordTime').value = now.toLocaleTimeString('fa-IR', {hour: '2-digit', minute: '2-digit'});
+            document.getElementById('recordDate').value = toPersianDate(now);
+            
+            // محاسبه کل هکتار
+            calculateTotalHectares();
+        }
+
+        // محاسبه کل هکتار از گزارش‌هاۄ1�7 قبلی
+        function calculateTotalHectares() {
+            const reports = JSON.parse(localStorage.getItem('farmReports') || '[]');
+            const total = reports.reduce((sum, report) => sum + parseFloat(report.todayHectares || 0), 0);
+            const todayHectares = parseFloat(document.getElementById('todayHectares').value || 0);
+            document.getElementById('totalHectares').value = (total + todayHectares).toFixed(1);
+        }
+
+        // به‌روزرسانۄ1�7 کل هکتار هنگام تغییر هکتار امروز
+        document.getElementById('todayHectares').addEventListener('input', calculateTotalHectares);
+
+        // کنترل نمایش فیلد واریته دیگر
+        function toggleVarietyType() {
+            const varietyType = document.getElementById('varietyType').value;
+            const otherContainer = document.getElementById('otherVarietyContainer');
+            
+            if (varietyType === 'دیگر') {
+                otherContainer.classList.remove('hidden');
+            } else {
+                otherContainer.classList.add('hidden');
+            }
+        }
+
+        // کنترل نمایش فیلد نام پیمانکار
+        function toggleContractorName() {
+            const cultivationType = document.getElementById('cultivationType').value;
+            const contractorContainer = document.getElementById('contractorNameContainer');
+            
+            if (cultivationType === 'دستی') {
+                contractorContainer.classList.remove('hidden');
+            } else {
+                contractorContainer.classList.add('hidden');
+            }
+        }
+
+        // کنترل نمایش جزئیات دستگاه متوقف
+        function toggleStoppedMachineDetails() {
+            const stoppedMachine = document.getElementById('stoppedMachine').value;
+            const detailsContainer = document.getElementById('stoppedMachineDetails');
+            const otherContainer = document.getElementById('otherMachineContainer');
+            
+            if (stoppedMachine === 'ندارد') {
+                detailsContainer.classList.add('hidden');
+            } else {
+                detailsContainer.classList.remove('hidden');
+                
+                if (stoppedMachine === 'دیگر') {
+                    otherContainer.classList.remove('hidden');
+                } else {
+                    otherContainer.classList.add('hidden');
+                }
+            }
+        }
+
+        // کنترل نمایش فیلد دلیل توقف دیگر
+        function toggleCustomStopReason() {
+            const stopReasonSelect = document.getElementById('stopReasonSelect').value;
+            const customContainer = document.getElementById('customStopReasonContainer');
+            
+            if (stopReasonSelect === 'دیگر') {
+                customContainer.classList.remove('hidden');
+            } else {
+                customContainer.classList.add('hidden');
+            }
+        }
+
+        // تنظیمات سرور ابری
+        const CLOUD_CONFIG = {
+            // ذخیره گزارش‌ه؄1�7
+            reportsBinId: '68a61658d0ea881f405e7e4e',
+            // ذخیره کاربران
+            usersBinId: '68a9fe84ae596e708fd25e33',
+            masterKey: '$2a$10$ndv0U7pxAuajXToOkZYy8OCvhOuDIGuJVsCxbt2FlvUJKondHM/LW',
+            baseUrl: 'https://api.jsonbin.io/v3/b'
+        };
+
+        // ذخیره در سرور ابری
+        async function saveToCloud(data, binId) {
+            try {
+                const response = await fetch(`${CLOUD_CONFIG.baseUrl}/${binId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Master-Key': CLOUD_CONFIG.masterKey,
+                        'X-Bin-Versioning': 'false'
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                return { success: true, data: result };
+            } catch (error) {
+                console.error('خطا در ذخیره ابری:', error);
+                return { success: false, error: error.message };
+            }
+        }
+
+        // بارگیری از سرور ابری
+        async function loadFromCloud(binId) {
+            try {
+                const response = await fetch(`${CLOUD_CONFIG.baseUrl}/${binId}/latest`, {
+                    method: 'GET',
+                    headers: {
+                        'X-Master-Key': CLOUD_CONFIG.masterKey
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                return { success: true, data: result.record };
+            } catch (error) {
+                console.error('خطا در بارگیری ابری:', error);
+                return { success: false, error: error.message };
+            }
+        }
+
+        // مدیریت کاربران در سرور ابری
+        async function saveUserToCloud(userData) {
+            try {
+                // بررسی صحت داده‌هاۄ1�7 کاربر
+                if (!userData || !userData.employeeId || !userData.fullName) {
+                    console.error('داده‌هاۄ1�7 کاربر ناقص است:', userData);
+                    return { success: false, error: 'داده‌هاۄ1�7 کاربر ناقص است' };
+                }
+
+                // بارگیری کاربران موجود
+                const existingUsersResult = await loadFromCloud(CLOUD_CONFIG.usersBinId);
+                let allUsers = {};
+                
+                if (existingUsersResult.success && existingUsersResult.data) {
+                    // فیلتر کردن مقادیر null و نامعتبر
+                    const validData = existingUsersResult.data;
+                    if (typeof validData === 'object' && validData !== null) {
+                        Object.keys(validData).forEach(key => {
+                            if (validData[key] && typeof validData[key] === 'object' && validData[key].employeeId) {
+                                allUsers[key] = validData[key];
+                            }
+                        });
+                    }
+                }
+                
+                // اضافه کردن یا به‌روزرسانۄ1�7 کاربر
+                const userKey = userData.employeeId;
+                allUsers[userKey] = {
+                    fullName: userData.fullName,
+                    employeeId: userData.employeeId,
+                    loginDate: userData.loginDate || new Date().toISOString(),
+                    lastLogin: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                };
+                
+                // ذخیره در سرور
+                const result = await saveToCloud(allUsers, CLOUD_CONFIG.usersBinId);
+                return result;
+            } catch (error) {
+                console.error('خطا در ذخیره کاربر:', error);
+                return { success: false, error: error.message };
+            }
+        }
+
+        // بارگیری اطلاعات کاربر از سرور
+        async function loadUserFromCloud(employeeId) {
+            try {
+                const usersResult = await loadFromCloud(CLOUD_CONFIG.usersBinId);
+                
+                if (usersResult.success && usersResult.data && usersResult.data[employeeId]) {
+                    return { success: true, user: usersResult.data[employeeId] };
+                }
+                
+                return { success: false, error: 'کاربر یافت نشد' };
+            } catch (error) {
+                console.error('خطا در بارگیری کاربر:', error);
+                return { success: false, error: error.message };
+            }
+        }
+
+        // همگام‌سازۄ1�7 گزارش‌هاۄ1�7 کاربر با سرور ابری
+        async function syncUserReportsWithCloud(employeeId) {
+            try {
+                // بررسی صحت شماره کارت پرسنلی
+                if (!employeeId || employeeId.trim() === '') {
+                    console.error('شماره کارت پرسنلی نامعتبر است');
+                    return { success: false, error: 'شماره کارت پرسنلی نامعتبر است' };
+                }
+
+                // بارگیری تمام گزارش‌ه؄1�7 از سرور
+                const reportsResult = await loadFromCloud(CLOUD_CONFIG.reportsBinId);
+                let allReports = {};
+                
+                if (reportsResult.success && reportsResult.data) {
+                    // فیلتر کردن داده‌هاۄ1�7 معتبر
+                    const validData = reportsResult.data;
+                    if (typeof validData === 'object' && validData !== null) {
+                        Object.keys(validData).forEach(key => {
+                            if (validData[key] && Array.isArray(validData[key])) {
+                                // فیلتر کردن گزارش‌هاۄ1�7 معتبر
+                                const validReports = validData[key].filter(report => 
+                                    report && 
+                                    typeof report === 'object' && 
+                                    report.id && 
+                                    report.office &&
+                                    report.todayHectares !== undefined
+                                );
+                                if (validReports.length > 0) {
+                                    allReports[key] = validReports;
+                                }
+                            }
+                        });
+                    }
+                }
+                
+                // گزارش‌هاۄ1�7 محلی کاربر فعلی
+                const localReports = JSON.parse(localStorage.getItem('farmReports') || '[]');
+                const validLocalReports = localReports.filter(report => 
+                    report && 
+                    typeof report === 'object' && 
+                    report.id && 
+                    report.office &&
+                    report.todayHectares !== undefined
+                );
+                
+                // اضافه کردن گزارش‌هاۄ1�7 محلی به سرور
+                if (!allReports[employeeId]) {
+                    allReports[employeeId] = [];
+                }
+                
+                // ادغام گزارش‌ه؄1�7 (حذف تکراری‌ه؄1�7)
+                const existingIds = allReports[employeeId].map(r => r.id);
+                const newReports = validLocalReports.filter(r => !existingIds.includes(r.id));
+                
+                if (newReports.length > 0) {
+                    allReports[employeeId] = [...allReports[employeeId], ...newReports];
+                }
+                
+                // ذخیره در سرور
+                const saveResult = await saveToCloud(allReports, CLOUD_CONFIG.reportsBinId);
+                
+                if (saveResult.success) {
+                    // به‌روزرسانۄ1�7 گزارش‌هاۄ1�7 محلی با گزارش‌هاۄ1�7 سرور
+                    localStorage.setItem('farmReports', JSON.stringify(allReports[employeeId] || []));
+                    return { success: true, newReports: newReports.length };
+                }
+                
+                return saveResult;
+            } catch (error) {
+                console.error('خطا در همگام‌سازۄ1�7 گزارش‌ه؄1�7:', error);
+                return { success: false, error: error.message };
+            }
+        }
+
+        // همگام‌سازۄ1�7 کلی با سرور ابری
+        async function syncWithCloud() {
+            const localUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+            
+            if (!localUser.employeeId) {
+                return { success: false, error: 'اطلاعات کاربر یافت نشد' };
+            }
+            
+            // ذخیره اطلاعات کاربر
+            const userResult = await saveUserToCloud(localUser);
+            
+            // همگام‌سازۄ1�7 گزارش‌ه؄1�7
+            const reportsResult = await syncUserReportsWithCloud(localUser.employeeId);
+            
+            return {
+                success: userResult.success && reportsResult.success,
+                userSaved: userResult.success,
+                reportsSynced: reportsResult.success,
+                newReports: reportsResult.newReports || 0
+            };
+        }
+
+        // ذخیره گزارش
+        async function saveReport() {
+            const form = document.getElementById('dailyReportForm');
+            if (!form.checkValidity()) {
+                showToast('لطفاً تمام فیلدهای الزامی را پر کنید', 'error');
+                return;
+            }
+
+            // نمایش حالت بارگذاری
+            const saveBtn = document.querySelector('button[onclick="saveReport()"]');
+            const originalText = saveBtn.innerHTML;
+            saveBtn.innerHTML = '⏄1�7 در حال ذخیره...';
+            saveBtn.disabled = true;
+
+            const stoppedMachine = document.getElementById('stoppedMachine').value;
+            const otherMachineName = document.getElementById('otherMachineName').value;
+            const stopReasonSelect = document.getElementById('stopReasonSelect').value;
+            const customStopReason = document.getElementById('customStopReason').value;
+            const varietyType = document.getElementById('varietyType').value;
+            const otherVarietyName = document.getElementById('otherVarietyName').value;
+            
+            const report = {
+                id: Date.now(),
+                office: document.getElementById('office').value,
+                cultivationType: document.getElementById('cultivationType').value,
+                contractorName: document.getElementById('contractorName').value,
+                varietyType: varietyType,
+                otherVarietyName: varietyType === 'دیگر' ? otherVarietyName : '',
+                stoppedMachine: stoppedMachine,
+                otherMachineName: stoppedMachine === 'دیگر' ? otherMachineName : '',
+                stopStartTime: document.getElementById('stopStartTime').value,
+                stopEndTime: document.getElementById('stopEndTime').value,
+                stopReason: stopReasonSelect === 'دیگر' ? customStopReason : stopReasonSelect,
+                canalName: document.getElementById('canalName').value,
+                farmLocation: document.getElementById('farmLocation').value,
+                startTime: document.getElementById('startTime').value,
+                endTime: document.getElementById('endTime').value,
+                todayHectares: document.getElementById('todayHectares').value,
+                totalHectares: document.getElementById('totalHectares').value,
+                recordTime: document.getElementById('recordTime').value,
+                recordDate: document.getElementById('recordDate').value,
+                notes: document.getElementById('notes').value,
+                timestamp: new Date().toISOString()
+            };
+
+            // ذخیره محلی
+            const reports = JSON.parse(localStorage.getItem('farmReports') || '[]');
+            reports.push(report);
+            localStorage.setItem('farmReports', JSON.stringify(reports));
+
+            // ذخیره در سرور ابری
+            const cloudResult = await syncWithCloud();
+            
+            // بازگردانی دکمه
+            saveBtn.innerHTML = originalText;
+            saveBtn.disabled = false;
+
+            if (cloudResult.success) {
+                showToast('✄1�7 گزارش در سرور ابری ذخیره شد');
+            } else {
+                showToast('⚠️ گزارش محلی ذخیره شد - خطا در ذخیره ابری', 'error');
+            }
+
+            form.reset();
+            initializeForm();
+        }
+
+
+
+
+
+        // همگام‌سازۄ1�7 از سرور ابری
+        async function syncFromCloud() {
+            const syncBtn = document.querySelector('button[onclick="syncFromCloud()"]');
+            const originalText = syncBtn.innerHTML;
+            syncBtn.innerHTML = '⏄1�7 در حال همگام‌سازۄ1�7...';
+            syncBtn.disabled = true;
+
+            try {
+                const localUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+                
+                if (!localUser.employeeId) {
+                    showToast('❄1�7 ابتدا وارد سیستم شوید', 'error');
+                    return;
+                }
+
+                // همگام‌سازۄ1�7 گزارش‌هاۄ1�7 کاربر
+                const result = await syncUserReportsWithCloud(localUser.employeeId);
+                
+                if (result.success) {
+                    calculateTotalHectares();
+                    
+                    if (result.newReports > 0) {
+                        showToast(`✄1�7 ${result.newReports} گزارش جدید از سرور دریافت شد`);
+                    } else {
+                        showToast('✄1�7 اطلاعات به‌رو؄1�7 است - تغییری نیافت');
+                    }
+                } else {
+                    showToast('❄1�7 خطا در همگام‌سازۄ1�7 با سرور', 'error');
+                }
+            } catch (error) {
+                console.error('خطا در همگام‌سازۄ1�7:', error);
+                showToast('❄1�7 خطا در همگام‌سازۄ1�7 با سرور', 'error');
+            } finally {
+                syncBtn.innerHTML = originalText;
+                syncBtn.disabled = false;
+            }
+        }
+
+        // بارگذاری و نمایش گزارش‌ه؄1�7
+        function loadReports() {
+            const reports = JSON.parse(localStorage.getItem('farmReports') || '[]');
+            const container = document.getElementById('savedReports');
+            const list = document.getElementById('reportsList');
+            
+            if (reports.length === 0) {
+                showToast('هیچ گزارشی ذخیره نشده است', 'error');
+                return;
+            }
+
+            list.innerHTML = '';
+            reports.reverse().forEach(report => {
+                // محاسبه ساعات کار
+                let workHours = 'نامشخص';
+                if (report.startTime && report.endTime) {
+                    try {
+                        const start = new Date(`2000-01-01 ${report.startTime}`);
+                        const end = new Date(`2000-01-01 ${report.endTime}`);
+                        let hours = (end - start) / (1000 * 60 * 60);
+                        if (hours < 0) hours += 24;
+                        workHours = `${Math.round(hours * 10) / 10} ساعت`;
+                    } catch (error) {
+                        workHours = 'نامشخص';
+                    }
+                }
+                
+                // اطلاعات دستگاه متوقف
+                const user = JSON.parse(localStorage.getItem('currentUser') || '{}');
+                const reporterName = user.fullName || 'نامشخص';
+                
+                let machineInfo = 'ندارد';
+                if (report.stoppedMachine && report.stoppedMachine !== 'ندارد') {
+                    const machineName = report.stoppedMachine === 'دیگر' ? report.otherMachineName : report.stoppedMachine;
+                    const stopDuration = calculateStopDuration(report.stopStartTime, report.stopEndTime);
+                    machineInfo = `${machineName} (${stopDuration})`;
+                }
+                
+                const div = document.createElement('div');
+                div.className = 'bg-white p-4 rounded-lg shadow border-r-4 border-green-500';
+                div.innerHTML = `
+                    <div class="flex justify-between items-start mb-3">
+                        <h4 class="font-bold text-gray-800 text-lg">👤 ${reporterName}</h4>
+                        <div class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                            شناسه: ${report.id}
+                        </div>
+                    </div>
+                    <div class="space-y-2 text-sm mb-4">
+                        <p class="text-gray-700"><span class="font-medium">🆔 شماره کارت:</span> ${user.employeeId || 'نامشخص'}</p>
+                        <p class="text-gray-700"><span class="font-medium">🏢 اداره:</span> ${report.office}</p>
+                        <p class="text-gray-700"><span class="font-medium">🌱 نوع کشت:</span> ${report.cultivationType}</p>
+                        ${report.contractorName ? `<p class="text-gray-700"><span class="font-medium">👷 پیمانکار:</span> ${report.contractorName}</p>` : ''}
+                        <p class="text-gray-700"><span class="font-medium">🧬 واریته:</span> ${report.varietyType === 'دیگر' ? report.otherVarietyName : report.varietyType}</p>
+                        <p class="text-gray-700"><span class="font-medium">🚰 کانال:</span> ${report.canalName}</p>
+                        <p class="text-gray-700"><span class="font-medium">📍 مزرعه:</span> ${report.farmLocation}</p>
+                        <p class="text-gray-700"><span class="font-medium">⏄1�7 ساعت کار:</span> ${report.startTime} تا ${report.endTime}</p>
+                        <p class="text-gray-700"><span class="font-medium">⚙️ دستگاه متوقف:</span> ${machineInfo}</p>
+                        <p class="text-blue-600 font-medium"><span class="font-medium">🕐 مدت کار:</span> ${workHours}</p>
+                        <p class="text-green-600 font-medium"><span class="font-medium">📏 هکتار امروز:</span> ${report.todayHectares}</p>
+                        <p class="text-green-600 font-medium"><span class="font-medium">📊 هکتار تا امروز:</span> ${report.totalHectares}</p>
+                        <p class="text-gray-600 font-medium"><span class="font-medium">📅 ثبت:</span> ${report.recordDate} - ${report.recordTime}</p>
+                    </div>
+                    <div class="flex gap-2 pt-3 border-t border-gray-200">
+                        <button onclick="copyReportText(${report.id})" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 px-3 rounded-lg text-sm font-medium transition-all">
+                            📋 کپی متن
+                        </button>
+                        <button onclick="downloadSingleReportExcel(${report.id})" class="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 px-3 rounded-lg text-sm font-medium transition-all">
+                            📊 دانلود اکسل
+                        </button>
+                    </div>
+                    <div class="flex gap-2 pt-2">
+                        <button onclick="editReport(${report.id})" class="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2 px-3 rounded-lg text-sm font-medium transition-all">
+                            ✏️ ویرایش
+                        </button>
+                        <button onclick="deleteReport(${report.id})" class="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 px-3 rounded-lg text-sm font-medium transition-all">
+                            🗑︄1�7 حذف
+                        </button>
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+            
+            container.classList.remove('hidden');
+        }
+
+        // محاسبه مدت توقف دستگاه
+        function calculateStopDuration(startTime, endTime) {
+            if (!startTime || !endTime) return 'نامشخص';
+            
+            try {
+                const start = new Date(`2000-01-01 ${startTime}`);
+                const end = new Date(`2000-01-01 ${endTime}`);
+                let hours = (end - start) / (1000 * 60 * 60);
+                
+                if (hours < 0) hours += 24;
+                
+                const wholeHours = Math.floor(hours);
+                const minutes = Math.round((hours - wholeHours) * 60);
+                
+                if (wholeHours === 0) {
+                    return `${minutes} دقیقه`;
+                } else if (minutes === 0) {
+                    return `${wholeHours} ساعت`;
+                } else {
+                    return `${wholeHours} ساعت و ${minutes} دقیقه`;
+                }
+            } catch (error) {
+                return 'نامشخص';
+            }
+        }
+
+
+
+        // حذف گزارش
+        function deleteReport(id) {
+            const reports = JSON.parse(localStorage.getItem('farmReports') || '[]');
+            const report = reports.find(r => r.id === id);
+            
+            if (!report) {
+                showToast('گزارش یافت نشد', 'error');
+                return;
+            }
+            
+            const confirmMessage = `آیا مطمئن هستید که می‌خواهی؄1�7 این گزارش را حذف کنید؟\n\n` +
+                `📅 تاریخ: ${report.recordDate}\n` +
+                `🏢 اداره: ${report.office}\n` +
+                `📏 هکتار: ${report.todayHectares}\n\n` +
+                `این عمل قابل بازگشت نیست!`;
+            
+            if (confirm(confirmMessage)) {
+                const filtered = reports.filter(r => r.id !== id);
+                localStorage.setItem('farmReports', JSON.stringify(filtered));
+                loadReports();
+                calculateTotalHectares();
+                showToast('گزارش با موفقیت حذف شد');
+            }
+        }
+
+        // ویرایش گزارش
+        function editReport(id) {
+            const reports = JSON.parse(localStorage.getItem('farmReports') || '[]');
+            const report = reports.find(r => r.id === id);
+            
+            if (!report) {
+                showToast('گزارش یافت نشد', 'error');
+                return;
+            }
+            
+            // پر کردن فرم با اطلاعات گزارش
+            document.getElementById('office').value = report.office || '';
+            document.getElementById('cultivationType').value = report.cultivationType || '';
+            document.getElementById('contractorName').value = report.contractorName || '';
+            document.getElementById('varietyType').value = report.varietyType || '';
+            document.getElementById('otherVarietyName').value = report.otherVarietyName || '';
+            document.getElementById('stoppedMachine').value = report.stoppedMachine || 'ندارد';
+            document.getElementById('otherMachineName').value = report.otherMachineName || '';
+            document.getElementById('stopStartTime').value = report.stopStartTime || '';
+            document.getElementById('stopEndTime').value = report.stopEndTime || '';
+            document.getElementById('stopReasonSelect').value = report.stopReason || '';
+            document.getElementById('customStopReason').value = report.stopReason || '';
+            document.getElementById('canalName').value = report.canalName || '';
+            document.getElementById('farmLocation').value = report.farmLocation || '';
+            document.getElementById('startTime').value = report.startTime || '';
+            document.getElementById('endTime').value = report.endTime || '';
+            document.getElementById('todayHectares').value = report.todayHectares || '';
+            document.getElementById('notes').value = report.notes || '';
+            
+            // فعال کردن فیلدهای مشروط
+            toggleContractorName();
+            toggleVarietyType();
+            toggleStoppedMachineDetails();
+            toggleCustomStopReason();
+            
+            // حذف گزارش قدیمی
+            deleteReport(id);
+            
+            // بازگشت به صفحه اصلی
+            backToMain();
+            
+            // نمایش پیام
+            showToast('گزارش برای ویرایش بارگذاری شد - تغییرات را اعمال کنید و مجدداً ذخیره کنید');
+            
+            // اسکرول به بالای صفحه
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // کپی متن گزارش منفرد
+        function copyReportText(id) {
+            try {
+                const reports = JSON.parse(localStorage.getItem('farmReports') || '[]');
+                const report = reports.find(r => r.id === id);
+                
+                if (!report) {
+                    showToast('گزارش یافت نشد', 'error');
+                    return;
+                }
+                
+                const user = JSON.parse(localStorage.getItem('currentUser') || '{}');
+                const reporterName = user.fullName || 'نامشخص';
+                
+                // محاسبه ساعات کار
+                let workHours = 'نامشخص';
+                if (report.startTime && report.endTime) {
+                    try {
+                        const start = new Date(`2000-01-01 ${report.startTime}`);
+                        const end = new Date(`2000-01-01 ${report.endTime}`);
+                        let hours = (end - start) / (1000 * 60 * 60);
+                        if (hours < 0) hours += 24;
+                        workHours = `${Math.round(hours * 10) / 10} ساعت`;
+                    } catch (error) {
+                        workHours = 'نامشخص';
+                    }
+                }
+                
+                // اطلاعات دستگاه متوقف
+                let machineInfo = 'ندارد';
+                if (report.stoppedMachine && report.stoppedMachine !== 'ندارد') {
+                    const machineName = report.stoppedMachine === 'دیگر' ? report.otherMachineName : report.stoppedMachine;
+                    const stopDuration = calculateStopDuration(report.stopStartTime, report.stopEndTime);
+                    machineInfo = `${machineName} (مدت توقف: ${stopDuration})`;
+                    if (report.stopReason) {
+                        machineInfo += ` - دلیل: ${report.stopReason}`;
+                    }
+                }
+                
+                const text = `گزارش روزانه کشت نیشکر
+👤 گزارش دهنده: ${reporterName}
+🏢 اداره: ${report.office}
+🌱 نوع کشت: ${report.cultivationType}${report.contractorName ? `\n👷 پیمانکار کشت: ${report.contractorName}` : ''}
+🧬 نوع واریته: ${report.varietyType === 'دیگر' ? report.otherVarietyName : report.varietyType}
+🚰 کانال: ${report.canalName}
+📍 مزرعه: ${report.farmLocation}
+⏄1�7 ساعت شروع/پایان: ${report.startTime} تا ${report.endTime}
+⚙️ اطلاعات دستگاه متوقف: ${machineInfo}
+🕐 تعداد ساعت کار: ${workHours}
+📅 تاریخ/ساعت ثبت: ${report.recordDate} - ${report.recordTime}
+📏 هکتار امروز: ${report.todayHectares}
+📊 هکتار تا امروز: ${report.totalHectares}
+📝 نکته: ${report.notes || 'ندارد'}`;
+                
+                // کپی متن
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(text).then(() => {
+                        showToast('متن گزارش کپی شد');
+                    }).catch((error) => {
+                        console.error('خطا در کپی:', error);
+                        fallbackCopyTextToClipboard(text);
+                    });
+                } else {
+                    fallbackCopyTextToClipboard(text);
+                }
+            } catch (error) {
+                console.error('خطا در کپی متن گزارش:', error);
+                showToast('خطا در کپی کردن متن', 'error');
+            }
+        }
+
+        // روش جایگزین کپی
+        function fallbackCopyTextToClipboard(text) {
+            try {
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                textArea.style.position = "fixed";
+                textArea.style.left = "-999999px";
+                textArea.style.top = "-999999px";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                
+                const successful = document.execCommand('copy');
+                document.body.removeChild(textArea);
+                
+                if (successful) {
+                    showToast('متن گزارش کپی شد');
+                } else {
+                    showToast('خطا در کپی کردن متن', 'error');
+                }
+            } catch (error) {
+                console.error('خطا در روش جایگزین کپی:', error);
+                showToast('خطا در کپی کردن متن', 'error');
+            }
+        }
+
+        // دانلود اکسل گزارش منفرد
+        function downloadSingleReportExcel(reportId) {
+            const reports = JSON.parse(localStorage.getItem('farmReports') || '[]');
+            const report = reports.find(r => r.id === reportId);
+            
+            if (!report) {
+                showToast('گزارش یافت نشد', 'error');
+                return;
+            }
+
+            const user = JSON.parse(localStorage.getItem('currentUser') || '{}');
+            const reporterName = user.fullName || 'نامشخص';
+
+            // محاسبه ساعات کار
+            let workHours = 'نامشخص';
+            if (report.startTime && report.endTime) {
+                try {
+                    const start = new Date(`2000-01-01 ${report.startTime}`);
+                    const end = new Date(`2000-01-01 ${report.endTime}`);
+                    let hours = (end - start) / (1000 * 60 * 60);
+                    if (hours < 0) hours += 24;
+                    workHours = `${Math.round(hours * 10) / 10} ساعت`;
+                } catch (error) {
+                    workHours = 'نامشخص';
+                }
+            }
+            
+            const machineName = report.stoppedMachine === 'دیگر' ? report.otherMachineName : report.stoppedMachine;
+            const varietyName = report.varietyType === 'دیگر' ? report.otherVarietyName : report.varietyType;
+            
+            const excelData = [{
+                'گزارش دهنده': reporterName,
+                'شماره کارت': user.employeeId || 'نامشخص',
+                'اداره': report.office,
+                'نوع کشت': report.cultivationType,
+                'نام پیمانکار': report.contractorName || '',
+                'نوع واریته': varietyName || '',
+                'نام کانال': report.canalName,
+                'موقعیت مزرعه': report.farmLocation,
+                'ساعت شروع': report.startTime,
+                'ساعت پایان': report.endTime,
+                'مدت کار': workHours,
+                'دستگاه متوقف': report.stoppedMachine || 'ندارد',
+                'نام دستگاه': machineName || '',
+                'ساعت شروع توقف': report.stopStartTime || '',
+                'ساعت پایان توقف': report.stopEndTime || '',
+                'دلیل توقف': report.stopReason || '',
+                'هکتار امروز': report.todayHectares,
+                'هکتار تا امروز': report.totalHectares,
+                'تاریخ ثبت': report.recordDate,
+                'ساعت ثبت': report.recordTime,
+                'نکته': report.notes || ''
+            }];
+
+            const ws = XLSX.utils.json_to_sheet(excelData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'گزارش روزانه');
+            
+            const fileName = `گزارش-${report.office}-${report.recordDate}-${reportId}.xlsx`;
+            XLSX.writeFile(wb, fileName);
+            
+            showToast('فایل اکسل گزارش دانلود شد');
+        }
+
+        // نمایش اعلان
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            
+            toastMessage.textContent = message;
+            let bgColor = 'bg-green-500';
+            if (type === 'error') bgColor = 'bg-red-500';
+            else if (type === 'warning') bgColor = 'bg-orange-500';
+            
+            toast.className = `toast ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg`;
+            toast.classList.add('show');
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 4000);
+        }
+
+        // مدیریت احراز هویت
+        function checkAuth() {
+            const user = localStorage.getItem('currentUser');
+            if (user) {
+                document.getElementById('loginPage').classList.add('hidden');
+                document.getElementById('mainPage').classList.remove('hidden');
+                initializeForm();
+            } else {
+                document.getElementById('loginPage').classList.remove('hidden');
+                document.getElementById('mainPage').classList.add('hidden');
+            }
+        }
+
+        // ورود کاربر
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const fullName = document.getElementById('fullName').value;
+            const employeeId = document.getElementById('employeeId').value;
+            const password = document.getElementById('password').value;
+            
+            if (password !== 'MK1370') {
+                showToast('رمز ورود اشتباه است', 'error');
+                return;
+            }
+            
+            const userData = {
+                fullName: fullName,
+                employeeId: employeeId,
+                loginDate: new Date().toISOString()
+            };
+            
+            localStorage.setItem('currentUser', JSON.stringify(userData));
+            
+            // ذخیره کاربر در سرور ابری
+            try {
+                await saveUserToCloud(userData);
+            } catch (error) {
+                console.log('خطا در ذخیره کاربر در سرور:', error);
+            }
+            
+            showToast('ورود موفقیت‌آمی؄1�7 بود');
+            checkAuth();
+            
+            // همگام‌سازۄ1�7 خودکار گزارش‌هاۄ1�7 کاربر پس از ورود
+            setTimeout(async () => {
+                try {
+                    const result = await syncUserReportsWithCloud(employeeId);
+                    if (result.success && result.newReports > 0) {
+                        calculateTotalHectares();
+                        showToast(`☁️ ${result.newReports} گزارش از سرور دریافت شد`);
+                    }
+                } catch (error) {
+                    console.log('همگام‌سازۄ1�7 خودکار انجام نشد:', error);
+                }
+            }, 2000);
+        });
+
+        // خروج کاربر
+        function logout() {
+            localStorage.removeItem('currentUser');
+            closeSidebar();
+            checkAuth();
+            showToast('خروج موفقیت‌آمی؄1�7 بود');
+        }
+
+        // مدیریت منوی کناری
+        function openSidebar() {
+            document.getElementById('sidebar').classList.add('open');
+            document.getElementById('overlay').classList.add('show');
+        }
+
+        function closeSidebar() {
+            document.getElementById('sidebar').classList.remove('open');
+            document.getElementById('overlay').classList.remove('show');
+        }
+
+        // نمایش صفحات منو
+        function showUserInfo() {
+            const user = JSON.parse(localStorage.getItem('currentUser'));
+            if (!user) {
+                showToast('اطلاعات کاربر یافت نشد', 'error');
+                return;
+            }
+            
+            const reports = JSON.parse(localStorage.getItem('farmReports') || '[]');
+            const totalHectares = reports.reduce((sum, report) => sum + parseFloat(report.todayHectares || 0), 0);
+            const content = document.getElementById('userInfoContent');
+            
+            content.innerHTML = `
+                <div class="bg-gradient-to-r from-green-50 to-blue-50 p-6 rounded-xl border border-green-200">
+                    <div class="flex items-center mb-6">
+                        <div class="w-20 h-20 bg-gradient-to-br from-green-500 to-green-700 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-lg">
+                            ${user.fullName ? user.fullName.charAt(0) : 'ک'}
+                        </div>
+                        <div class="mr-4">
+                            <h3 class="text-xl font-bold text-gray-800">${user.fullName || 'نامشخص'}</h3>
+                            <p class="text-gray-600 font-medium">🆔 کارت پرسنلی: ${user.employeeId || 'نامشخص'}</p>
+                            <p class="text-sm text-green-600 font-medium">✄1�7 کاربر فعال</p>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div class="bg-white p-3 rounded-lg shadow-sm">
+                            <div class="text-xs text-gray-500 mb-1">تاریخ ورود</div>
+                            <div class="text-sm font-medium text-gray-800">
+                                ${user.loginDate ? toPersianDate(new Date(user.loginDate)) : 'نامشخص'}
+                            </div>
+                        </div>
+                        <div class="bg-white p-3 rounded-lg shadow-sm">
+                            <div class="text-xs text-gray-500 mb-1">ساعت ورود</div>
+                            <div class="text-sm font-medium text-gray-800">
+                                ${user.loginDate ? new Date(user.loginDate).toLocaleTimeString('fa-IR', {hour: '2-digit', minute: '2-digit'}) : 'نامشخص'}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-6 space-y-4">
+                    <div class="bg-blue-50 p-4 rounded-xl border border-blue-200">
+                        <h4 class="font-bold text-blue-800 mb-3 flex items-center">
+                            📊 آمار عملکرد شما
+                        </h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="bg-white p-3 rounded-lg">
+                                <div class="text-2xl font-bold text-blue-600">${reports.length}</div>
+                                <div class="text-xs text-gray-600">تعداد گزارش‌ه؄1�7</div>
+                            </div>
+                            <div class="bg-white p-3 rounded-lg">
+                                <div class="text-2xl font-bold text-green-600">${totalHectares.toFixed(1)}</div>
+                                <div class="text-xs text-gray-600">کل هکتار کشت</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-yellow-50 p-4 rounded-xl border border-yellow-200">
+                        <h4 class="font-bold text-yellow-800 mb-2">🏆 وضعیت عملکرد</h4>
+                        <div class="text-sm text-yellow-700">
+                            ${reports.length > 10 ? 'عملکرد عالی! بیش از 10 گزارش ثبت شده' : 
+                              reports.length > 5 ? 'عملکرد خوب! ادامه دهید' : 
+                              reports.length > 0 ? 'شروع خوبی داشته‌ای؄1�7' : 'هنوز گزارشی ثبت نکرده‌ای؄1�7'}
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            hideAllPages();
+            document.getElementById('menuPages').classList.remove('hidden');
+            document.getElementById('userInfoPage').classList.remove('hidden');
+            closeSidebar();
+        }
+
+        function showPerformance() {
+            hideAllPages();
+            document.getElementById('menuPages').classList.remove('hidden');
+            document.getElementById('performancePage').classList.remove('hidden');
+            closeSidebar();
+            
+            // تاخیر کوتاه برای اطمینان از نمایش صفحه
+            setTimeout(() => {
+                generateCharts();
+            }, 500);
+        }
+
+        function showSupport() {
+            hideAllPages();
+            document.getElementById('menuPages').classList.remove('hidden');
+            document.getElementById('supportPage').classList.remove('hidden');
+            closeSidebar();
+        }
+
+        function showBackup() {
+            hideAllPages();
+            document.getElementById('menuPages').classList.remove('hidden');
+            document.getElementById('backupPage').classList.remove('hidden');
+            closeSidebar();
+            
+            // به‌روزرسانۄ1�7 اطلاعات فعلی
+            updateBackupInfo();
+        }
+        
+        function updateBackupInfo() {
+            const reports = JSON.parse(localStorage.getItem('farmReports') || '[]');
+            const totalHectares = reports.reduce((sum, report) => sum + parseFloat(report.todayHectares || 0), 0);
+            
+            const reportsCountEl = document.getElementById('currentReportsCount');
+            const totalHectaresEl = document.getElementById('currentTotalHectares');
+            
+            if (reportsCountEl) reportsCountEl.textContent = reports.length;
+            if (totalHectaresEl) totalHectaresEl.textContent = totalHectares.toFixed(1);
+        }
+
+        function backToMain() {
+            hideAllPages();
+            document.getElementById('mainPage').classList.remove('hidden');
+        }
+
+        function hideAllPages() {
+            document.getElementById('mainPage').classList.add('hidden');
+            document.getElementById('menuPages').classList.add('hidden');
+            document.getElementById('userInfoPage').classList.add('hidden');
+            document.getElementById('performancePage').classList.add('hidden');
+            document.getElementById('supportPage').classList.add('hidden');
+            document.getElementById('backupPage').classList.add('hidden');
+        }
+
+        // تماس با پشتیبانی
+        function callSupport() {
+            const phoneNumber = '09168231334';
+            const confirmMessage = `آیا می‌خواهی؄1�7 با شماره پشتیبانی تماس بگیرید؟\n\n📱 ${phoneNumber}\n👤 محمد کعب`;
+            
+            if (confirm(confirmMessage)) {
+                window.location.href = `tel:${phoneNumber}`;
+                showToast('در حال برقراری تماس...');
+            }
+        }
+
+        // تولید نمودارها
+        function generateCharts() {
+            const reports = JSON.parse(localStorage.getItem('farmReports') || '[]');
+            const performanceContent = document.getElementById('performanceContent');
+            
+            if (reports.length === 0) {
+                performanceContent.innerHTML = `
+                    <div class="text-center py-12">
+                        <div class="text-8xl mb-6">📊</div>
+                        <h3 class="text-xl font-bold text-gray-700 mb-3">هنوز گزارشی ثبت نشده</h3>
+                        <p class="text-gray-500 mb-6">برای مشاهده نمودارهای عملکرد، ابتدا گزارش‌هایۄ1�7 ثبت کنید</p>
+                        <button onclick="backToMain()" class="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg font-medium">
+                            📝 ثبت گزارش جدید
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+            
+            // بازسازی محتوای نمودارها
+            performanceContent.innerHTML = `
+                <div class="space-y-6">
+                    <div class="bg-gradient-to-r from-green-50 to-green-100 p-6 rounded-xl border border-green-200">
+                        <h3 class="text-lg font-bold mb-4 text-center text-green-800">📈 روند کشت هکتار</h3>
+                        <div style="height: 300px; position: relative;">
+                            <canvas id="hectareChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="bg-gradient-to-r from-blue-50 to-blue-100 p-6 rounded-xl border border-blue-200">
+                        <h3 class="text-lg font-bold mb-4 text-center text-blue-800">⏄1�7 ساعات کار روزانه</h3>
+                        <div style="height: 300px; position: relative;">
+                            <canvas id="hoursChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="bg-gradient-to-r from-purple-50 to-purple-100 p-6 rounded-xl border border-purple-200">
+                        <h3 class="text-lg font-bold mb-4 text-center text-purple-800">📊 خلاصه آمار</h3>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="bg-white p-4 rounded-lg text-center">
+                                <div class="text-2xl font-bold text-green-600">${reports.reduce((sum, r) => sum + parseFloat(r.todayHectares || 0), 0).toFixed(1)}</div>
+                                <div class="text-sm text-gray-600">کل هکتار</div>
+                            </div>
+                            <div class="bg-white p-4 rounded-lg text-center">
+                                <div class="text-2xl font-bold text-blue-600">${reports.length}</div>
+                                <div class="text-sm text-gray-600">تعداد گزارش</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // تاخیر کوتاه برای اطمینان از رندر شدن عناصر
+            setTimeout(() => {
+                try {
+                    // پاک کردن نمودارهای قبلی
+                    if (window.hectareChart && typeof window.hectareChart.destroy === 'function') {
+                        window.hectareChart.destroy();
+                        window.hectareChart = null;
+                    }
+                    if (window.hoursChart && typeof window.hoursChart.destroy === 'function') {
+                        window.hoursChart.destroy();
+                        window.hoursChart = null;
+                    }
+                    
+                    // نمودار هکتار
+                    const hectareCanvas = document.getElementById('hectareChart');
+                    if (hectareCanvas && hectareCanvas.getContext) {
+                        const hectareCtx = hectareCanvas.getContext('2d');
+                        if (!hectareCtx) {
+                            console.error('نمی‌توال1�7 context نمودار هکتار را دریافت کرد');
+                            return;
+                        }
+                        const hectareData = processHectareData(reports);
+                        
+                        window.hectareChart = new Chart(hectareCtx, {
+                            type: 'line',
+                            data: {
+                                labels: hectareData.labels,
+                                datasets: [{
+                                    label: 'هکتار کشت شده',
+                                    data: hectareData.values,
+                                    borderColor: 'rgb(34, 197, 94)',
+                                    backgroundColor: 'rgba(34, 197, 94, 0.2)',
+                                    tension: 0.4,
+                                    fill: true,
+                                    pointBackgroundColor: 'rgb(34, 197, 94)',
+                                    pointBorderColor: 'white',
+                                    pointBorderWidth: 2,
+                                    pointRadius: 6
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    legend: {
+                                        display: true,
+                                        position: 'top',
+                                        labels: {
+                                            usePointStyle: true,
+                                            padding: 20
+                                        }
+                                    }
+                                },
+                                scales: {
+                                    y: {
+                                        beginAtZero: true,
+                                        title: {
+                                            display: true,
+                                            text: 'هکتار',
+                                            font: {
+                                                size: 14,
+                                                weight: 'bold'
+                                            }
+                                        },
+                                        grid: {
+                                            color: 'rgba(0,0,0,0.1)'
+                                        }
+                                    },
+                                    x: {
+                                        title: {
+                                            display: true,
+                                            text: 'تاریخ',
+                                            font: {
+                                                size: 14,
+                                                weight: 'bold'
+                                            }
+                                        },
+                                        grid: {
+                                            color: 'rgba(0,0,0,0.1)'
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    }
+
+                    // نمودار ساعات کار
+                    const hoursCanvas = document.getElementById('hoursChart');
+                    if (hoursCanvas && hoursCanvas.getContext) {
+                        const hoursCtx = hoursCanvas.getContext('2d');
+                        if (!hoursCtx) {
+                            console.error('نمی‌توال1�7 context نمودار ساعات را دریافت کرد');
+                            return;
+                        }
+                        const hoursData = processHoursData(reports);
+                        
+                        window.hoursChart = new Chart(hoursCtx, {
+                            type: 'bar',
+                            data: {
+                                labels: hoursData.labels,
+                                datasets: [{
+                                    label: 'ساعات کار',
+                                    data: hoursData.values,
+                                    backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                                    borderColor: 'rgb(59, 130, 246)',
+                                    borderWidth: 2,
+                                    borderRadius: 8,
+                                    borderSkipped: false
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    legend: {
+                                        display: true,
+                                        position: 'top',
+                                        labels: {
+                                            usePointStyle: true,
+                                            padding: 20
+                                        }
+                                    }
+                                },
+                                scales: {
+                                    y: {
+                                        beginAtZero: true,
+                                        title: {
+                                            display: true,
+                                            text: 'ساعت',
+                                            font: {
+                                                size: 14,
+                                                weight: 'bold'
+                                            }
+                                        },
+                                        grid: {
+                                            color: 'rgba(0,0,0,0.1)'
+                                        }
+                                    },
+                                    x: {
+                                        title: {
+                                            display: true,
+                                            text: 'تاریخ',
+                                            font: {
+                                                size: 14,
+                                                weight: 'bold'
+                                            }
+                                        },
+                                        grid: {
+                                            color: 'rgba(0,0,0,0.1)'
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    }
+                } catch (error) {
+                    console.error('خطا در ایجاد نمودارها:', error);
+                    performanceContent.innerHTML = `
+                        <div class="text-center py-8">
+                            <div class="text-6xl mb-4">⚠️</div>
+                            <h3 class="text-lg font-semibold text-red-600 mb-2">خطا در نمایش نمودارها</h3>
+                            <p class="text-gray-500">لطفاً مجدداً تلاش کنید</p>
+                            <button onclick="generateCharts()" class="mt-4 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg">
+                                🔄 تلاش مجدد
+                            </button>
+                        </div>
+                    `;
+                }
+            }, 300);
+        }
+
+        function processHectareData(reports) {
+            const dailyData = {};
+            const officeData = {};
+            
+            reports.forEach(report => {
+                const date = report.recordDate || 'نامشخص';
+                const office = report.office || 'نامشخص';
+                const hectares = parseFloat(report.todayHectares || 0);
+                
+                // داده‌هاۄ1�7 کل
+                if (!dailyData[date]) {
+                    dailyData[date] = 0;
+                }
+                dailyData[date] += hectares;
+                
+                // داده‌هاۄ1�7 هر اداره
+                if (!officeData[office]) {
+                    officeData[office] = {};
+                }
+                if (!officeData[office][date]) {
+                    officeData[office][date] = 0;
+                }
+                officeData[office][date] += hectares;
+            });
+            
+            // مرتب کردن تاریخ‌ه؄1�7
+            const sortedDates = Object.keys(dailyData).sort();
+            
+            return {
+                labels: sortedDates,
+                values: sortedDates.map(date => dailyData[date]),
+                officeData: officeData
+            };
+        }
+
+        function processHoursData(reports) {
+            const dailyHours = {};
+            const officeHours = {};
+            
+            reports.forEach(report => {
+                const date = report.recordDate || 'نامشخص';
+                const office = report.office || 'نامشخص';
+                
+                if (report.startTime && report.endTime) {
+                    try {
+                        const start = new Date(`2000-01-01 ${report.startTime}`);
+                        const end = new Date(`2000-01-01 ${report.endTime}`);
+                        let hours = (end - start) / (1000 * 60 * 60);
+                        
+                        // اگر ساعت پایان کمتر از شروع باشد (شب کاری)
+                        if (hours < 0) {
+                            hours += 24;
+                        }
+                        
+                        // داده‌هاۄ1�7 کل
+                        if (!dailyHours[date]) {
+                            dailyHours[date] = 0;
+                        }
+                        dailyHours[date] += hours;
+                        
+                        // داده‌هاۄ1�7 هر اداره
+                        if (!officeHours[office]) {
+                            officeHours[office] = {};
+                        }
+                        if (!officeHours[office][date]) {
+                            officeHours[office][date] = 0;
+                        }
+                        officeHours[office][date] += hours;
+                    } catch (error) {
+                        console.log('خطا در محاسبه ساعات:', error);
+                    }
+                }
+            });
+            
+            // مرتب کردن تاریخ‌ه؄1�7
+            const sortedDates = Object.keys(dailyHours).sort();
+            
+            return {
+                labels: sortedDates,
+                values: sortedDates.map(date => Math.round(dailyHours[date] * 10) / 10),
+                officeData: officeHours
+            };
+        }
+
+        // بکاپ و بازیابی
+        function createBackup() {
+            try {
+                const reports = JSON.parse(localStorage.getItem('farmReports') || '[]');
+                const user = JSON.parse(localStorage.getItem('currentUser') || '{}');
+                
+                const allData = {
+                    user: user,
+                    reports: reports,
+                    backupDate: new Date().toISOString(),
+                    version: '1.0',
+                    totalReports: reports.length,
+                    totalHectares: reports.reduce((sum, report) => sum + parseFloat(report.todayHectares || 0), 0)
+                };
+                
+                const dataStr = JSON.stringify(allData, null, 2);
+                const dataBlob = new Blob([dataStr], {type: 'application/json'});
+                
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(dataBlob);
+                const fileName = `کشاورزی-بکاپ-${new Date().toISOString().split('T')[0]}.json`;
+                link.download = fileName;
+                link.click();
+                
+                showToast(`فایل بکاپ با ${reports.length} گزارش ایجاد شد`);
+                
+                // پاک کردن URL برای آزادسازی حافظه
+                setTimeout(() => {
+                    URL.revokeObjectURL(link.href);
+                }, 100);
+                
+            } catch (error) {
+                console.error('خطا در ایجاد بکاپ:', error);
+                showToast('خطا در ایجاد فایل بکاپ', 'error');
+            }
+        }
+
+        function restoreBackup() {
+            const fileInput = document.getElementById('backupFile');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showToast('لطفاً فایل بکاپ را انتخاب کنید', 'error');
+                return;
+            }
+            
+            if (!file.name.endsWith('.json')) {
+                showToast('لطفاً فایل JSON معتبر انتخاب کنید', 'error');
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const backupData = JSON.parse(e.target.result);
+                    
+                    // بررسی صحت فایل بکاپ
+                    if (!backupData.reports || !Array.isArray(backupData.reports)) {
+                        showToast('فایل بکاپ معتبر نیست', 'error');
+                        return;
+                    }
+                    
+                    // تأیید بازیابی
+                    const currentReports = JSON.parse(localStorage.getItem('farmReports') || '[]');
+                    const confirmMessage = `آیا مطمئن هستید؟\n\nاطلاعات فعلی: ${currentReports.length} گزارش\nاطلاعات بکاپ: ${backupData.reports.length} گزارش\n\nتمام اطلاعات فعلی حذف و جایگزین می‌شو؄1�7.`;
+                    
+                    if (!confirm(confirmMessage)) {
+                        return;
+                    }
+                    
+                    // بازیابی اطلاعات
+                    if (backupData.user && Object.keys(backupData.user).length > 0) {
+                        localStorage.setItem('currentUser', JSON.stringify(backupData.user));
+                    }
+                    
+                    localStorage.setItem('farmReports', JSON.stringify(backupData.reports));
+                    
+                    showToast(`بازیابی موفق: ${backupData.reports.length} گزارش بازیابی شد`);
+                    
+                    // به‌روزرسانۄ1�7 صفحه
+                    calculateTotalHectares();
+                    updateBackupInfo();
+                    
+                    // پاک کردن فیلد انتخاب فایل
+                    fileInput.value = '';
+                    
+                } catch (error) {
+                    console.error('خطا در بازیابی:', error);
+                    showToast('فایل بکاپ آسیب دیده یا نامعتبر است', 'error');
+                }
+            };
+            
+            reader.onerror = function() {
+                showToast('خطا در خواندن فایل', 'error');
+            };
+            
+            reader.readAsText(file);
+        }
+
+        // راه‌اندازۄ1�7 هنگام بارگذاری صفحه
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAuth();
+            updateConnectionStatus();
+        });
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'973ff9eca129cb47',t:'MTc1NjAwODM3OC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
